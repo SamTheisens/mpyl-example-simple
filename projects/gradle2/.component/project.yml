@@ -1,8 +1,7 @@
-name: 'gradle1'
+name: 'gradle2'
 maintainer: ['MPyL']
 stages:
   build: Gradle Build
-  assemble: Docker Wrap
   test: Gradle Test
 mpylVersion: 1.0.10
 description: 'Demonstrates gradle build via plugin'

@@ -20,6 +20,8 @@ build:
 stages:
   - name: 'build'
     icon: '🏗️'
+  - name: 'assemble'
+    icon: '📦'
   - name: 'test'
     icon: '📋'
   - name: 'deploy'
