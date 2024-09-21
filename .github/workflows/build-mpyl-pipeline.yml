@@ -19,12 +19,12 @@ jobs:
       - name: Tag grafted root revision
         run: git tag origin/main $(git log --pretty=format:"%H" | tail -n 1)
 
+      - name: Install poetry
+        run: pipx install poetry
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pipenv'
-          cache-dependency-path: |
-            Pipfile.lock
+          cache: 'poetry'
 
       - uses: actions/setup-java@v2
         with:
@@ -32,12 +32,24 @@ jobs:
           java-version: 17
           cache: gradle
 
-      - name: Install pipenv
-        run: pip install pipenv
-
       - name: Install dependencies
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: pipenv install -d
+        run: poetry install
 
       - name: MPyL health
-        run: pipenv run mpyl health --ci
+        run: poetry run mpyl health --ci
+
+      - name: Build status
+        run: poetry run mpyl build status
+
+      - name: Find PR number
+        uses: jwalton/gh-find-current-pr@v1
+        id: findPr
+        if: github.ref_name != 'main'
+        with:
+          state: open
+
+      - name: Build run
+        env:
+          PR_NUMBER: ${{ steps.findPr.outputs.pr }}
+        run: poetry run build

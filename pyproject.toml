@@ -14,10 +14,12 @@ priority = "explicit"
 python = "^3.11" # Not the latest version, but 3.11 comes bundled in our pipeline image
 mpyl = {version = "480.4276", source = "test-pypi"}
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+build = "cicd.run:build"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

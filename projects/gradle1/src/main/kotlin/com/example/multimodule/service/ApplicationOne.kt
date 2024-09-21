@@ -11,7 +11,7 @@ class ApplicationOne {
     @Bean
     fun run(): CommandLineRunner =
         CommandLineRunner {
-            println("HELLO WORLD 1")
+            println("HELLO WORLD 1 / change")
         }
 
 }
