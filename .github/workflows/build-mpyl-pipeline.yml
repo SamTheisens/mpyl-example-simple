@@ -1,0 +1,43 @@
+name: build
+on:
+  push:
+    branches-ignore: [ 'main' ]
+
+permissions: write-all
+
+jobs:
+  build-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      MPYL_VERSION: "1.6.7"
+      DOCKER_REGISTRY_USR: ${{ github.actor }}
+      DOCKER_REGISTRY_PSW: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Manual checkout
+        run: git clone --shallow-exclude main --single-branch --branch ${{ github.ref_name }} https://github.com/SamTheisens/mpyl-example-simple.git $(pwd)
+
+      - name: Tag grafted root revision
+        run: git tag origin/main $(git log --pretty=format:"%H" | tail -n 1)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pipenv'
+          cache-dependency-path: |
+            Pipfile.lock
+
+      - uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Install pipenv
+        run: pip install pipenv
+
+      - name: Install dependencies
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: pipenv install -d
+
+      - name: MPyL health
+        run: pipenv run mpyl health --ci

@@ -1,0 +1,163 @@
+mpylVersion: 1.3.1
+vcs:
+  git:
+    projectSubFolder: ".component"
+    mainBranch: 'main'
+    ignorePatterns: ['*.md', '*.svg']
+    remote:
+      url: 'https://github.com/SamTheisens/mpyl-example-argocd.git'
+      userName: SamTheisens
+      password: !ENV ${ARGOCD_GITHUB_TOKEN}
+      email: 1911436+SamTheisens@users.noreply.github.com
+  github:
+    repository: 'acme/repo'
+    token: !ENV ${GITHUB_TOKEN}
+  argoRepository:
+    mainBranch: 'main'
+    remote:
+      url: 'https://github.com/SamTheisens/mpyl-example-argocd.git'
+      userName: SamTheisens
+      password: !ENV ${ARGOCD_GITHUB_TOKEN}
+      email: 1911436+SamTheisens@users.noreply.github.com
+  argoGithub:
+    repository: 'SamTheisens/mpyl-example-argocd'
+    token: !ENV ${ARGOCD_GITHUB_TOKEN}
+  cachingRepository:
+    mainBranch: 'main'
+    remote:
+      url: 'https://github.com/SamTheisens/mpyl-example-argocd.git'
+      userName: SamTheisens
+      password: !ENV ${ARGOCD_GITHUB_TOKEN}
+      email: 1911436+SamTheisens@users.noreply.github.com
+docker:
+  defaultRegistry: 'ghcr.io'
+  registries:
+    - hostName: 'ghcr.io'
+      organization: 'SamTheisens'
+      userName: !ENV ${DOCKER_REGISTRY_USR:docker_user}
+      password: !ENV ${DOCKER_REGISTRY_PSW:docker_password}
+      provider: "azure"
+      cache:
+        cacheFromRegistry: true
+  build:
+    rootFolder: '.'
+    buildTarget: 'builder'
+    testTarget: 'tester'
+    dockerFileName: 'Dockerfile-mpl'
+  compose:
+    periodSeconds: 2
+    failureThreshold: 20
+sbt:
+  command: 'sbt'
+  clientCommand: 'sbtn'
+  testWithCoverage: !ENV ${SBT_RUN_WITH_COVERAGE:false}
+  verbose: false
+  javaOpts: '-Xmx4G -Xms4G -XX:+UseG1GC -Xss2M'
+  sbtOpts: 'user.timezone=GMT jline.terminal=jline.UnixTerminal'
+  clientMode:
+    build: false
+    test: false
+whiteLists:
+  default: ["VPN"]
+  addresses:
+    - name: "VPN"
+      all: ["10.0.0.1"]
+    - name: 'Outside-World'
+      all: ['0.0.0.0/0']
+    - name: 'K8s-Test'
+      all: ['1.2.3.0', '1.2.3.1']
+kubernetes:
+  deploymentStrategy:
+    rollingUpdate:
+      maxUnavailable: "25%"
+      maxSurge: "25%"
+    type: "RollingUpdate"
+  defaultCluster:
+    pr: 'test'
+    test: 'test'
+    acceptance: 'acce'
+    production: 'prod'
+  clusters:
+    - name: 'test'
+      clusterId: c-xxxxx
+      clusterEnv: test
+      context: digital-k8s-test
+    - name: 'other-test'
+      clusterEnv: test-other
+      context: digital-k8s-test-other
+    - name: 'acce'
+      clusterId: c-zzzzz
+      clusterEnv: acce
+      context: digital-k8s-acce
+    - name: 'prod'
+      clusterId: c-ccccc
+      clusterEnv: prod
+      context: digital-k8s-prod
+  deployAction: KubectlManifest
+project: # default values
+  allowedMaintainers: ['Team1', 'Team2', 'MPyL']
+  deployment:
+    kubernetes:
+      rancher:
+        projectId:
+          all: test1234
+      job:
+        ttlSecondsAfterFinished:
+          all: 3600
+      resources:
+        instances:
+          pr: 1
+          test: 1
+          acceptance: 1
+          production: 3
+        limit:
+          cpus:
+            pr: 0.5
+            test: 0.5
+            acceptance: 0.5
+            production: 1.0
+          mem:
+            pr: 1024
+            test: 1024
+            acceptance: 1024
+            production: 2048
+      startupProbe:
+        path:
+          all: '/health'
+        initialDelaySeconds: 4  # 0 - We expect service to rarely be up within 4 secs.
+        periodSeconds: 2  # 10 - We want the service to become available as soon as possible
+        timeoutSeconds: 3  # 1 - If the app is very busy during the startup stage, 1 second might be too fast
+        successThreshold: 1  # 1 - We want the service to become available as soon as possible
+        failureThreshold: 60  # 3 - 4 + 60 * 2 = more than 2 minutes
+      livenessProbe:
+        path:
+          all: '/health'
+        periodSeconds: 30  # 10
+        timeoutSeconds: 20  # 1 - Busy apps may momentarily have long timeouts
+        successThreshold: 1  # 1
+        failureThreshold: 3  # 3
+      metrics:
+        path: '/metrics'
+        enabled: true
+    traefik:
+      enabled: true
+      hosts:
+        - host:
+            pr: "Host(`{SERVICE-NAME}-{PR-NUMBER}.test-backend.nl`)"
+            test: "Host(`{namespace}-{SERVICE-NAME}.test-backend.nl`)"
+            acceptance: "Host(`{namespace}-{SERVICE-NAME}.acce-backend.nl`)"
+            production: "Host(`{namespace}-{SERVICE-NAME}.prod-backend.nl`)"
+          tls:
+            all: "le-custom-prod-wildcard-cert"
+          insecure: false
+          whitelists:
+            all: ["VPN"]
+    additionalTraefikRoutes:
+      - name: "ingress-intracloud-https"
+        middlewares:
+          - "intracloud-middleware@kubernetescrd"
+        entrypoints:
+          - "intracloud"
+    traefikDefaults:
+      httpMiddleware: "traefik-https-redirect@kubernetescrd"
+      tls: "le-custom-prod-wildcard-cert"
