@@ -1,0 +1,55 @@
+name: build
+on:
+  push:
+    branches-ignore: [ 'main' ]
+
+permissions: write-all
+
+jobs:
+  build-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      MPYL_VERSION: "1.6.7"
+      DOCKER_REGISTRY_USR: ${{ github.actor }}
+      DOCKER_REGISTRY_PSW: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Manual checkout
+        run: git clone --shallow-exclude main --single-branch --branch ${{ github.ref_name }} https://github.com/SamTheisens/mpyl-example-simple.git $(pwd)
+
+      - name: Tag grafted root revision
+        run: git tag origin/main $(git log --pretty=format:"%H" | tail -n 1)
+
+      - name: Install poetry
+        run: pipx install poetry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'poetry'
+
+      - uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Install dependencies
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: poetry install
+
+      - name: MPyL health
+        run: poetry run mpyl health --ci
+
+      - name: Build status
+        run: poetry run mpyl build status
+
+      - name: Find PR number
+        uses: jwalton/gh-find-current-pr@v1
+        id: findPr
+        if: github.ref_name != 'main'
+        with:
+          state: open
+
+      - name: Build run
+        env:
+          PR_NUMBER: ${{ steps.findPr.outputs.pr }}
+        run: poetry run build
