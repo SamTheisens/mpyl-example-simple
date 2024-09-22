@@ -10,12 +10,15 @@ from dagster import (
     Failure,
     job,
 )
+from mpyl.cli import MpylCliParameters
 
 from mpyl.project import load_project
 from mpyl.project_execution import ProjectExecution
+from mpyl.reporting.formatting.markdown import run_result_to_markdown
 from mpyl.stages.discovery import find_projects_to_execute
 from mpyl.steps import build, test, deploy, IPluginRegistry
 from mpyl.steps.collection import StepsCollection
+from mpyl.steps.run import RunResult
 from mpyl.steps.run_properties import construct_run_properties
 from mpyl.steps.steps import Steps, StepResult
 from mpyl.utilities.pyaml_env import parse_config
@@ -54,6 +57,11 @@ def test_project(context, project) -> Output:
     return Output(execute_step(project, test.STAGE_NAME))
 
 
+@op(description="Assemble stage. Produces docker image for archive")
+def assemble_project(context, project) -> Output:
+    return Output(execute_step(project, "assemble"))
+
+
 @op(
     description="Deploy a project to the target specified in the step",
     config_schema={"dry_run": bool},
@@ -64,20 +72,23 @@ def deploy_project(context, project: ProjectExecution) -> Output:
 
 
 @op(
-    description="Deploy all artifacts produced over all runs of the pipeline",
+    description="Report the results of the run",
     config_schema={"simulate_deploy": bool},
 )
-def deploy_projects(
-        context, projects: list[ProjectExecution], outputs: list[StepResult]
+def report_results(
+        context, assemble: list[StepResult], test: list[StepResult]
 ) -> Output[list[StepResult]]:
-    simulate_deploy: bool = context.op_config["simulate_deploy"]
-    res = []
-    if simulate_deploy:
-        for proj in projects:
-            res.append(execute_step(proj, deploy.STAGE_NAME))
-    else:
-        get_dagster_logger().info(f"Not deploying {projects}")
-    return Output(res)
+    config = parse_config(Path(f"{ROOT_PATH}mpyl_config.yml"))
+    properties = parse_config(Path(f"{ROOT_PATH}run_properties.yml"))
+    run_properties = construct_run_properties(
+        config=config, properties=properties, cli_parameters=MpylCliParameters(local=True)
+    )
+    result = RunResult(run_properties=run_properties)
+    result.extend(assemble)
+    result.extend(test)
+
+    get_dagster_logger().info(run_result_to_markdown(result))
+    return Output(assemble + test)
 
 
 def find_projects(stage: str) -> list[DynamicOutput[ProjectExecution]]:
@@ -89,7 +100,6 @@ def find_projects(stage: str) -> list[DynamicOutput[ProjectExecution]]:
         map(lambda p: load_project(Path("."), Path(p), strict=False), project_paths)
     )
     dagster_logger = get_dagster_logger()
-    dagster_logger.info(f"{project_paths} -> {all_projects}")
     steps = StepsCollection(logger=dagster_logger)
     project_executions = find_projects_to_execute(
         logger=dagster_logger,
@@ -104,6 +114,11 @@ def find_projects(stage: str) -> list[DynamicOutput[ProjectExecution]]:
 @op(out=DynamicOut(), description="Find artifacts that need to be built")
 def find_build_projects() -> list[DynamicOutput[ProjectExecution]]:
     return find_projects(build.STAGE_NAME)
+
+
+@op(out=DynamicOut(), description="Find artifacts that need to be assembled")
+def find_assemble_projects(_projects) -> list[DynamicOutput[ProjectExecution]]:
+    return find_projects("assemble")
 
 
 @op(out=DynamicOut(), description="Find artifacts that need to be tested")
@@ -121,11 +136,15 @@ def run_build():
     build_projects = find_build_projects()
     build_results = build_projects.map(build_project)
 
-    test_projects = find_test_projects(build_results.collect())
+    build_results = build_results.collect()
+
+    test_projects = find_test_projects(build_results)
     test_results = test_projects.map(test_project)
 
-    projects_to_deploy = find_deploy_projects(test_projects.collect())
+    assemble_projects = find_assemble_projects(build_results)
+    assemble_results = assemble_projects.map(assemble_project)
 
-    deploy_projects(
-        projects=projects_to_deploy.collect(), outputs=test_results.collect()
+
+    report_results(
+        assemble=assemble_results.collect(), test=test_results.collect()
     )
