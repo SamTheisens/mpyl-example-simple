@@ -26,6 +26,4 @@ stages:
     icon: '📋'
   - name: 'deploy'
     icon: '🚀'
-  - name: 'postdeploy'
-    icon: '🦺️'
 

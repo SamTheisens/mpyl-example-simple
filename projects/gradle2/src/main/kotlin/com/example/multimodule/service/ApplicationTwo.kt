@@ -18,5 +18,5 @@ class ApplicationTwo {
 
 
 fun main(args: Array<String>) {
-    runApplication<ApplicationOne>(*args)
+    runApplication<ApplicationTwo>(*args)
 }
