@@ -13,4 +13,4 @@ def build() -> None:
     IPluginRegistry.plugins.append(TestGradle)
 
     add_commands()
-    main_group(["build", "-c", "mpyl_config.yml", "run", "--ci"], standalone_mode=False)
+    main_group(["build", "-c", "mpyl_config.yml", "run"], standalone_mode=False)
