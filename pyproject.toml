@@ -21,7 +21,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-build = "cicd.run:build"
+mp = "cicd.run:build"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
