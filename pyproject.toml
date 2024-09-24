@@ -12,7 +12,7 @@ priority = "explicit"
 
 [tool.poetry.dependencies]
 python = ">=3.11, <3.13" # Not the latest version, but 3.11 comes bundled in our pipeline image
-mpyl = {version = "485.4279", source = "test-pypi"}
+mpyl = {version = "485.4283", source = "test-pypi"}
 dagster = "==1.8.8"
 dagster-webserver = "==1.8.8"
 
